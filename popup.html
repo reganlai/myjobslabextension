@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Job Tracker</h1>
+
+  <!-- Scraped job info from current tab -->
+  <div id="job-info">
+    <p id="job-title">Job Title: —</p>
+    <p id="company">Company: —</p>
+    <p id="location">Location: —</p>
+    <p id="url">URL: —</p>
+  </div>
+
+  <div id="action-row">
+    <button id="action-button">Add to Applied</button>
+    <button id="clear-button">Clear All</button>
+  </div>
+
+  <!-- Saved applications list -->
+  <ul id="jobs-list"></ul>
+
+  <script src="popup.js"></script>
+</body>
+</html>
