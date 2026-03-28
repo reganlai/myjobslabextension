@@ -4,25 +4,67 @@
   <meta charset="UTF-8" />
   <title>Job Tracker</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Supabase SDK (Local to comply with MV3) -->
+  <script src="supabase.js"></script>
 </head>
 <body>
-  <h1>Job Tracker</h1>
-
-  <!-- Scraped job info from current tab -->
-  <div id="job-info">
-    <p id="job-title">Job Title: —</p>
-    <p id="company">Company: —</p>
-    <p id="location">Location: —</p>
-    <p id="url">URL: —</p>
+  <div class="header">
+    <div class="logo-row">
+      <span class="logo-text">MyJobsLab</span>
+    </div>
   </div>
 
-  <div id="action-row">
-    <button id="action-button">Add to Applied</button>
-    <button id="clear-button">Clear All</button>
+  <div id="loading-view" class="view">
+    <p>Loading...</p>
   </div>
 
-  <!-- Saved applications list -->
-  <ul id="jobs-list"></ul>
+  <!-- Auth View: Login -->
+  <div id="auth-view" class="view hidden">
+    <div class="auth-card">
+      <p class="auth-title">Log in to sync jobs</p>
+      <form id="login-form">
+        <input type="email" id="email" placeholder="Email" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <button type="submit" id="login-button">Log In</button>
+      </form>
+      <div id="auth-error" class="error-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- App View: Scraper & List -->
+  <div id="app-view" class="view hidden">
+    <div class="user-bar">
+      <span id="user-email"></span>
+      <button id="logout-button">Logout</button>
+    </div>
+
+    <!-- Scraped job info from current tab -->
+    <div id="job-info">
+      <div class="job-detail">
+        <span class="label">Job Title</span>
+        <p id="job-title">—</p>
+      </div>
+      <div class="job-detail">
+        <span class="label">Company</span>
+        <p id="company">—</p>
+      </div>
+      <div class="job-detail">
+        <span class="label">Location</span>
+        <p id="location">—</p>
+      </div>
+    </div>
+
+    <div id="action-row">
+      <button id="action-button">Add to Applied</button>
+    </div>
+
+    <div class="section-divider">
+      <span>Recently Saved</span>
+    </div>
+
+    <!-- Saved applications list -->
+    <ul id="jobs-list"></ul>
+  </div>
 
   <script src="popup.js"></script>
 </body>

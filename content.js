@@ -12,6 +12,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function scrapeJobInfo() {
+  const getMeta = (name) => {
+    const el = document.querySelector(`meta[property="${name}"]`) || document.querySelector(`meta[name="${name}"]`);
+    return el ? el.getAttribute("content") : null;
+  };
+
   // ── LinkedIn ──────────────────────────────────────────────────────────────
   const linkedinTitle =
     document.querySelector(".job-details-jobs-unified-top-card__job-title h1") ||
@@ -68,36 +73,51 @@ function scrapeJobInfo() {
     };
   }
 
-  // ── Handshake ─────────────────────────────────────────────────────────────
-  // app.joinhandshake.com/jobs/:id  and  app.joinhandshake.com/postings/:id
-  const handshakeTitle =
-    document.querySelector('[data-hook="posting-name"]') ||
-    document.querySelector("h1.posting-detail-header--title") ||
-    document.querySelector("h1.style__title");
+  // ── Google Jobs ───────────────────────────────────────────────────────────
+  const googleTitle = document.querySelector(".hN7mZd") || document.querySelector(".KL4Mdc");
+  const googleCompany = document.querySelector(".vNEEBe");
+  const googleLocation = document.querySelector(".Qk80nd");
 
-  const handshakeCompany =
-    document.querySelector('[data-hook="employer-profile-link"]') ||
-    document.querySelector("a.posting-detail-header--employer-name") ||
-    document.querySelector("a.style__employer-name");
-
-  const handshakeLocation =
-    document.querySelector('[data-hook="posting-location"]') ||
-    document.querySelector(".posting-detail-header--location") ||
-    document.querySelector(".style__location");
-
-  if (handshakeTitle) {
+  if (googleTitle) {
     return {
-      title:    handshakeTitle.innerText.trim(),
-      company:  handshakeCompany  ? handshakeCompany.innerText.trim()  : "",
-      location: handshakeLocation ? handshakeLocation.innerText.trim() : "",
+      title: googleTitle.innerText.trim(),
+      company: googleCompany ? googleCompany.innerText.trim() : "",
+      location: googleLocation ? googleLocation.innerText.trim() : "",
     };
   }
 
-  // ── Generic fallback: grab the page <h1> ─────────────────────────────────
-  const h1 = document.querySelector("h1");
+  // ── ZipRecruiter ──────────────────────────────────────────────────────────
+  const zipTitle = document.querySelector(".job_title");
+  const zipCompany = document.querySelector(".hiring_company_text");
+  const zipLocation = document.querySelector(".location");
+
+  if (zipTitle) {
+    return {
+      title: zipTitle.innerText.trim(),
+      company: zipCompany ? zipCompany.innerText.trim() : "",
+      location: zipLocation ? zipLocation.innerText.trim() : "",
+    };
+  }
+
+  // ── Monster ───────────────────────────────────────────────────────────────
+  const monsterTitle = document.querySelector(".title") || document.querySelector("[class*='JobViewHeader--title']");
+  const monsterCompany = document.querySelector(".company") || document.querySelector("[class*='JobViewHeader--company']");
+
+  if (monsterTitle) {
+    return {
+      title: monsterTitle.innerText.trim(),
+      company: monsterCompany ? monsterCompany.innerText.trim() : "",
+      location: "",
+    };
+  }
+
+  // ── Generic fallback: Use OpenGraph or Page Title ─────────────────────────
+  const ogTitle = getMeta("og:title");
+  const ogCompany = getMeta("og:site_name");
+
   return {
-    title: h1 ? h1.innerText.trim() : document.title,
-    company: "",
+    title: ogTitle || document.querySelector("h1")?.innerText.trim() || document.title,
+    company: ogCompany || "",
     location: "",
   };
 }

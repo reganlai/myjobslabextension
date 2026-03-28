@@ -1,120 +1,184 @@
-// popup.js — Popup Brain
+const SUPABASE_URL = "https://hrmsypgqtkgnkhodhqbb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhybXN5cGdxdGtnbmtob2RocWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDYyNDIsImV4cCI6MjA4OTgyMjI0Mn0.gk0cYdMhNGtG_S5iJ40kMVucmbegQLGGC847ZA5RCLw";
 
-const titleEl   = document.getElementById("job-title");
-const companyEl = document.getElementById("company");
-const locationEl = document.getElementById("location");
-const urlEl     = document.getElementById("url");
-const addBtn    = document.getElementById("action-button");
-const clearBtn  = document.getElementById("clear-button");
-const listEl    = document.getElementById("jobs-list");
+const { createClient } = window.supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let currentJob = null; // job data scraped from the active tab
+// Rename global variable to avoid conflict
+const supabase = supabaseClient;
 
-// ── On load ──────────────────────────────────────────────────────────────────
+// DOM Elements
+const loadingView = document.getElementById("loading-view");
+const authView    = document.getElementById("auth-view");
+const appView     = document.getElementById("app-view");
+const loginForm   = document.getElementById("login-form");
+const authError   = document.getElementById("auth-error");
+const userEmail   = document.getElementById("user-email");
+const logoutBtn   = document.getElementById("logout-button");
+
+const titleEl     = document.getElementById("job-title");
+const companyEl   = document.getElementById("company");
+const locationEl  = document.getElementById("location");
+const addBtn      = document.getElementById("action-button");
+const listEl      = document.getElementById("jobs-list");
+
+let currentJob = null;
+let session = null;
+
+// ── Initialization ───────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. Ask content.js for the job info on the current tab
+  // 1. Check Auth State
+  const { data } = await supabase.auth.getSession();
+  session = data.session;
+  updateUI();
+
+  if (session) {
+    initApp();
+  }
+});
+
+function updateUI() {
+  loadingView.classList.add("hidden");
+  if (session) {
+    authView.classList.add("hidden");
+    appView.classList.remove("hidden");
+    userEmail.textContent = session.user.email;
+  } else {
+    appView.classList.add("hidden");
+    authView.classList.remove("hidden");
+  }
+}
+
+async function initApp() {
+  // 2. Scrape Current Tab
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // Don't scrape on non-http pages
+    if (!tab.url.startsWith("http")) throw new Error("Not a job page");
+
     currentJob = await chrome.tabs.sendMessage(tab.id, { type: "GET_JOB_INFO" });
-    currentJob.url = tab.url; // attach the tab URL
+    currentJob.url = tab.url;
 
-    titleEl.textContent   = "Job Title: "  + (currentJob.title    || "—");
-    companyEl.textContent = "Company: "    + (currentJob.company  || "—");
-    locationEl.textContent= "Location: "  + (currentJob.location || "—");
-    urlEl.textContent     = "URL: "        + currentJob.url;
-    urlEl.title           = currentJob.url; // tooltip for long URLs
-  } catch {
-    // Content script not injected on this page (e.g., chrome:// pages)
-    titleEl.textContent   = "Job Title: —";
-    companyEl.textContent = "Company: —";
-    locationEl.textContent= "Location: —";
-    urlEl.textContent     = "URL: —";
+    titleEl.textContent   = currentJob.title    || "—";
+    companyEl.textContent = currentJob.company  || "—";
+    locationEl.textContent= currentJob.location || "—";
+    
+    // Check if already saved
+    checkIfSaved(currentJob.url);
+  } catch (err) {
+    titleEl.textContent = "—";
+    companyEl.textContent = "—";
+    locationEl.textContent = "—";
     addBtn.disabled = true;
-    addBtn.textContent = "Not a job page";
+    addBtn.textContent = "Cannot scrape this page";
   }
 
-  // 2. Load and render saved jobs
-  renderJobs();
+  // 3. Load Recent Jobs
+  loadRecentJobs();
+}
+
+// ── Auth Handlers ────────────────────────────────────────────────────────────
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  authError.classList.add("hidden");
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  
+  if (error) {
+    authError.textContent = error.message;
+    authError.classList.remove("hidden");
+  } else {
+    session = data.session;
+    updateUI();
+    initApp();
+  }
 });
 
-// ── Add to Applied ────────────────────────────────────────────────────────────
+logoutBtn.addEventListener("click", async () => {
+  await supabase.auth.signOut();
+  session = null;
+  updateUI();
+});
+
+// ── Data Handlers ────────────────────────────────────────────────────────────
 addBtn.addEventListener("click", async () => {
-  if (!currentJob) return;
+  if (!currentJob || !session) return;
 
-  const newJob = {
-    title:    currentJob.title    || "Unknown Title",
-    company:  currentJob.company  || "Unknown Company",
-    location: currentJob.location || "",
-    url:      currentJob.url      || "",
-    date:     new Date().toLocaleDateString(),
-  };
-
-  const { jobs = [] } = await chrome.storage.local.get("jobs");
-
-  // Prevent duplicates by URL
-  if (jobs.some(j => j.url === newJob.url)) {
-    addBtn.textContent = "✓ Already saved";
-    addBtn.disabled = true;
-    return;
-  }
-
-  jobs.push(newJob);
-  await chrome.storage.local.set({ jobs });
-
-  renderJobs(jobs);
-
-  addBtn.textContent = "✓ Applied";
   addBtn.disabled = true;
-});
+  addBtn.textContent = "Saving...";
 
-// ── Clear All ─────────────────────────────────────────────────────────────────
-clearBtn.addEventListener("click", async () => {
-  await chrome.storage.local.clear();
-  renderJobs([]);
-  // Re-enable the add button for current page if we have job data
-  if (currentJob) {
-    addBtn.textContent = "Add to Applied";
+  const { error } = await supabase
+    .from('jobs')
+    .insert({
+      user_id: session.user.id,
+      title: currentJob.title || "Unknown Title",
+      company: currentJob.company || "Unknown Company",
+      url: currentJob.url,
+      status: 'Applied'
+    });
+
+  if (error) {
     addBtn.disabled = false;
+    addBtn.textContent = "Error saving";
+    console.error(error);
+  } else {
+    addBtn.textContent = "✓ Saved to Dashboard";
+    loadRecentJobs();
   }
 });
 
-// ── Render helpers ────────────────────────────────────────────────────────────
-async function renderJobs(jobs) {
-  if (!jobs) {
-    const data = await chrome.storage.local.get("jobs");
-    jobs = data.jobs || [];
+async function checkIfSaved(url) {
+  const { data } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('url', url)
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+
+  if (data) {
+    addBtn.disabled = true;
+    addBtn.textContent = "✓ Already in Dashboard";
   }
+}
 
+async function loadRecentJobs() {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('user_id', session.user.id)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (!error) {
+    renderJobs(data);
+  }
+}
+
+function renderJobs(jobs) {
   listEl.innerHTML = "";
-
-  if (jobs.length === 0) {
-    listEl.innerHTML = '<li class="empty-state">No applications saved yet.</li>';
+  if (!jobs || jobs.length === 0) {
+    listEl.innerHTML = '<li class="empty-state">No jobs saved yet.</li>';
     return;
   }
 
-  jobs.slice().reverse().forEach(job => {
+  jobs.forEach(job => {
     const li = document.createElement("li");
     li.className = "job-item";
     li.innerHTML = `
       <div class="job-header">
         <span class="job-title">${escapeHtml(job.title)}</span>
-        <span class="job-date">${escapeHtml(job.date)}</span>
+        <span class="job-status">${escapeHtml(job.status)}</span>
       </div>
-      <div class="job-company">${escapeHtml(job.company)}${job.location ? " · " + escapeHtml(job.location) : ""}</div>
-      ${job.url ? `<a class="job-url" href="${escapeHtml(job.url)}" target="_blank">${truncate(job.url, 45)}</a>` : ""}
+      <div class="job-company">${escapeHtml(job.company)}</div>
     `;
     listEl.appendChild(li);
   });
 }
 
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function truncate(str, max) {
-  return str.length > max ? str.slice(0, max) + "…" : str;
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
 }
