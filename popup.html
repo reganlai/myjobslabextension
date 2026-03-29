@@ -206,8 +206,31 @@
   <div class="content">
     <!-- Not logged in -->
     <div id="login-prompt">
-      <p>Log in to MyJobsLab to start saving jobs to your dashboard.</p>
-      <a href="https://your-site.com/login" target="_blank">Log In to MyJobsLab</a>
+      <p style="font-size:13px; color:#6b7280; margin-bottom:14px; line-height:1.5;">
+        Log in to save jobs to your MyJobsLab dashboard.
+      </p>
+
+      <div id="auth-form">
+        <input type="email" id="auth-email" placeholder="Email"
+          style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:9px 12px; font-size:13px; color:#111827; background:#f9fafb; margin-bottom:8px; outline:none;" />
+        <input type="password" id="auth-password" placeholder="Password"
+          style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:9px 12px; font-size:13px; color:#111827; background:#f9fafb; margin-bottom:8px; outline:none;" />
+        <div id="auth-error"
+          style="display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; color:#dc2626; font-size:12px; padding:8px 12px; margin-bottom:8px;">
+        </div>
+        <button id="auth-submit-btn"
+          style="width:100%; background:#2563eb; color:white; font-weight:700; font-size:13px; padding:10px; border-radius:10px; border:none; cursor:pointer;">
+          Log In
+        </button>
+      </div>
+
+      <p style="text-align:center; font-size:12px; color:#9ca3af; margin-top:12px;">
+        No account?
+        <a href="https://your-site.com/login" target="_blank"
+          style="color:#2563eb; font-weight:600; text-decoration:none;">
+          Sign up on MyJobsLab
+        </a>
+      </p>
     </div>
 
     <!-- Not a job page -->

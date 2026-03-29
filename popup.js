@@ -118,4 +118,69 @@ logoutBtn.addEventListener('click', async () => {
   userEmail.textContent = ''
 })
 
+const authSubmitBtn = document.getElementById('auth-submit-btn')
+const authEmail = document.getElementById('auth-email')
+const authPassword = document.getElementById('auth-password')
+const authError = document.getElementById('auth-error')
+
+authSubmitBtn.addEventListener('click', async () => {
+  const email = authEmail.value.trim()
+  const password = authPassword.value.trim()
+
+  if (!email || !password) {
+    authError.textContent = 'Please enter your email and password.'
+    authError.style.display = 'block'
+    return
+  }
+
+  authSubmitBtn.disabled = true
+  authSubmitBtn.textContent = 'Logging in…'
+  authError.style.display = 'none'
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ email, password })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      // Handle email not confirmed specifically
+      if (data.error_description?.toLowerCase().includes('email not confirmed')) {
+        throw new Error('Please confirm your email before logging in. Check your inbox.')
+      }
+      throw new Error(data.error_description || data.msg || 'Login failed')
+    }
+
+    // Build session object matching what your website sends
+    const session = {
+      access_token: data.access_token,
+      user: {
+        id: data.user.id,
+        email: data.user.email
+      }
+    }
+
+    // Save to extension storage
+    await chrome.runtime.sendMessage({ type: 'SAVE_SESSION', session })
+
+    // Re-run init with the new session
+    currentSession = session
+    loginPrompt.style.display = 'none'
+    userEmail.textContent = session.user.email
+    init()
+
+  } catch (err) {
+    authError.textContent = err.message || 'Something went wrong. Try again.'
+    authError.style.display = 'block'
+    authSubmitBtn.disabled = false
+    authSubmitBtn.textContent = 'Log In'
+  }
+})
+
 init()
