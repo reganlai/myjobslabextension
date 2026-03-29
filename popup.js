@@ -1,184 +1,121 @@
-const SUPABASE_URL = "https://hrmsypgqtkgnkhodhqbb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhybXN5cGdxdGtnbmtob2RocWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDYyNDIsImV4cCI6MjA4OTgyMjI0Mn0.gk0cYdMhNGtG_S5iJ40kMVucmbegQLGGC847ZA5RCLw";
+const SUPABASE_URL = 'https://hrmsypgqtkgnkhodhqbb.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhybXN5cGdxdGtnbmtob2RocWJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDYyNDIsImV4cCI6MjA4OTgyMjI0Mn0.gk0cYdMhNGtG_S5iJ40kMVucmbegQLGGC847ZA5RCLw'
 
-const { createClient } = window.supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const loginPrompt = document.getElementById('login-prompt')
+const notJobPage = document.getElementById('not-job-page')
+const jobInfo = document.getElementById('job-info')
+const jobTitle = document.getElementById('job-title')
+const jobCompany = document.getElementById('job-company')
+const jobUrl = document.getElementById('job-url')
+const statusSelect = document.getElementById('status-select')
+const saveBtn = document.getElementById('save-btn')
+const successMsg = document.getElementById('success-msg')
+const errorMsg = document.getElementById('error-msg')
+const userEmail = document.getElementById('user-email')
+const logoutBtn = document.getElementById('logout-btn')
 
-// Rename global variable to avoid conflict
-const supabase = supabaseClient;
+const SUPPORTED_SITES = ['linkedin.com', 'indeed.com', 'glassdoor.com', 'joinhandshake.com']
 
-// DOM Elements
-const loadingView = document.getElementById("loading-view");
-const authView    = document.getElementById("auth-view");
-const appView     = document.getElementById("app-view");
-const loginForm   = document.getElementById("login-form");
-const authError   = document.getElementById("auth-error");
-const userEmail   = document.getElementById("user-email");
-const logoutBtn   = document.getElementById("logout-button");
+let currentSession = null
+let currentJob = null
 
-const titleEl     = document.getElementById("job-title");
-const companyEl   = document.getElementById("company");
-const locationEl  = document.getElementById("location");
-const addBtn      = document.getElementById("action-button");
-const listEl      = document.getElementById("jobs-list");
-
-let currentJob = null;
-let session = null;
-
-// ── Initialization ───────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", async () => {
-  // 1. Check Auth State
-  const { data } = await supabase.auth.getSession();
-  session = data.session;
-  updateUI();
-
-  if (session) {
-    initApp();
-  }
-});
-
-function updateUI() {
-  loadingView.classList.add("hidden");
-  if (session) {
-    authView.classList.add("hidden");
-    appView.classList.remove("hidden");
-    userEmail.textContent = session.user.email;
-  } else {
-    appView.classList.add("hidden");
-    authView.classList.remove("hidden");
-  }
-}
-
-async function initApp() {
-  // 2. Scrape Current Tab
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    // Don't scrape on non-http pages
-    if (!tab.url.startsWith("http")) throw new Error("Not a job page");
-
-    currentJob = await chrome.tabs.sendMessage(tab.id, { type: "GET_JOB_INFO" });
-    currentJob.url = tab.url;
-
-    titleEl.textContent   = currentJob.title    || "—";
-    companyEl.textContent = currentJob.company  || "—";
-    locationEl.textContent= currentJob.location || "—";
-    
-    // Check if already saved
-    checkIfSaved(currentJob.url);
-  } catch (err) {
-    titleEl.textContent = "—";
-    companyEl.textContent = "—";
-    locationEl.textContent = "—";
-    addBtn.disabled = true;
-    addBtn.textContent = "Cannot scrape this page";
-  }
-
-  // 3. Load Recent Jobs
-  loadRecentJobs();
-}
-
-// ── Auth Handlers ────────────────────────────────────────────────────────────
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  authError.classList.add("hidden");
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  
-  if (error) {
-    authError.textContent = error.message;
-    authError.classList.remove("hidden");
-  } else {
-    session = data.session;
-    updateUI();
-    initApp();
-  }
-});
-
-logoutBtn.addEventListener("click", async () => {
-  await supabase.auth.signOut();
-  session = null;
-  updateUI();
-});
-
-// ── Data Handlers ────────────────────────────────────────────────────────────
-addBtn.addEventListener("click", async () => {
-  if (!currentJob || !session) return;
-
-  addBtn.disabled = true;
-  addBtn.textContent = "Saving...";
-
-  const { error } = await supabase
-    .from('jobs')
-    .insert({
+async function saveJobToSupabase(job, session) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${session.access_token}`,
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify({
       user_id: session.user.id,
-      title: currentJob.title || "Unknown Title",
-      company: currentJob.company || "Unknown Company",
-      url: currentJob.url,
-      status: 'Applied'
-    });
-
-  if (error) {
-    addBtn.disabled = false;
-    addBtn.textContent = "Error saving";
-    console.error(error);
-  } else {
-    addBtn.textContent = "✓ Saved to Dashboard";
-    loadRecentJobs();
+      title: job.title,
+      company: job.company,
+      url: job.url,
+      status: job.status
+    })
+  })
+  if (!response.ok) {
+    const err = await response.json()
+    throw new Error(err.message || 'Failed to save job')
   }
-});
-
-async function checkIfSaved(url) {
-  const { data } = await supabase
-    .from('jobs')
-    .select('id')
-    .eq('url', url)
-    .eq('user_id', session.user.id)
-    .maybeSingle();
-
-  if (data) {
-    addBtn.disabled = true;
-    addBtn.textContent = "✓ Already in Dashboard";
-  }
+  return response.json()
 }
 
-async function loadRecentJobs() {
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('user_id', session.user.id)
-    .order('created_at', { ascending: false })
-    .limit(5);
+async function init() {
+  // Get session from background
+  const { session } = await chrome.runtime.sendMessage({ type: 'GET_SESSION' })
 
-  if (!error) {
-    renderJobs(data);
-  }
-}
-
-function renderJobs(jobs) {
-  listEl.innerHTML = "";
-  if (!jobs || jobs.length === 0) {
-    listEl.innerHTML = '<li class="empty-state">No jobs saved yet.</li>';
-    return;
+  if (!session) {
+    loginPrompt.style.display = 'block'
+    return
   }
 
-  jobs.forEach(job => {
-    const li = document.createElement("li");
-    li.className = "job-item";
-    li.innerHTML = `
-      <div class="job-header">
-        <span class="job-title">${escapeHtml(job.title)}</span>
-        <span class="job-status">${escapeHtml(job.status)}</span>
-      </div>
-      <div class="job-company">${escapeHtml(job.company)}</div>
-    `;
-    listEl.appendChild(li);
-  });
+  currentSession = session
+  userEmail.textContent = session.user.email
+
+  // Get current tab
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const isSupported = SUPPORTED_SITES.some(site => tab.url?.includes(site))
+
+  if (!isSupported) {
+    jobInfo.style.display = 'block'
+    notJobPage.style.display = 'block'
+    jobInfo.style.display = 'none'
+    notJobPage.style.display = 'block'
+    return
+  }
+
+  // Scrape the page
+  let jobData = null
+  try {
+    jobData = await chrome.tabs.sendMessage(tab.id, { type: 'GET_JOB_INFO' })
+  } catch (e) {
+    notJobPage.style.display = 'block'
+    return
+  }
+
+  if (!jobData?.title) {
+    notJobPage.style.display = 'block'
+    return
+  }
+
+  currentJob = jobData
+  jobTitle.textContent = jobData.title || '—'
+  jobCompany.textContent = jobData.company || '—'
+  jobUrl.textContent = jobData.url || '—'
+  jobInfo.style.display = 'block'
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, m => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[m]));
-}
+saveBtn.addEventListener('click', async () => {
+  if (!currentJob || !currentSession) return
+
+  saveBtn.disabled = true
+  saveBtn.textContent = 'Saving…'
+  errorMsg.style.display = 'none'
+
+  try {
+    await saveJobToSupabase({
+      ...currentJob,
+      status: statusSelect.value
+    }, currentSession)
+
+    saveBtn.style.display = 'none'
+    successMsg.style.display = 'block'
+  } catch (err) {
+    errorMsg.textContent = err.message || 'Something went wrong. Try again.'
+    errorMsg.style.display = 'block'
+    saveBtn.disabled = false
+    saveBtn.textContent = 'Save to Dashboard'
+  }
+})
+
+logoutBtn.addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'CLEAR_SESSION' })
+  loginPrompt.style.display = 'block'
+  jobInfo.style.display = 'none'
+  userEmail.textContent = ''
+})
+
+init()

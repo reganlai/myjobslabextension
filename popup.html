@@ -1,71 +1,249 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
   <meta charset="UTF-8" />
-  <title>Job Tracker</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Supabase SDK (Local to comply with MV3) -->
-  <script src="supabase.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      width: 320px;
+      background: #ffffff;
+      color: #111827;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .header img {
+      width: 24px;
+      height: 24px;
+    }
+
+    .header span {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .header .user-email {
+      margin-left: auto;
+      font-size: 11px;
+      color: #9ca3af;
+      max-width: 130px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    /* Not logged in */
+    #login-prompt {
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    #login-prompt p {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    #login-prompt a {
+      display: inline-block;
+      background: #2563eb;
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 20px;
+      border-radius: 10px;
+      text-decoration: none;
+    }
+
+    /* Job info */
+    #job-info {
+      display: none;
+    }
+
+    .field-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .field-value {
+      font-size: 13px;
+      color: #111827;
+      font-weight: 500;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .field-value.muted {
+      color: #6b7280;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .status-select {
+      width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #374151;
+      background: #f9fafb;
+      margin-bottom: 14px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .status-select:focus {
+      border-color: #2563eb;
+    }
+
+    #save-btn {
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+
+    #save-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    #save-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #success-msg {
+      display: none;
+      text-align: center;
+      padding: 12px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      color: #16a34a;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    #error-msg {
+      display: none;
+      text-align: center;
+      padding: 10px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      color: #dc2626;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    #not-job-page {
+      display: none;
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    #not-job-page p {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .logout-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+      padding: 6px;
+    }
+
+    .logout-btn:hover {
+      color: #6b7280;
+    }
+  </style>
 </head>
+
 <body>
   <div class="header">
-    <div class="logo-row">
-      <span class="logo-text">MyJobsLab</span>
-    </div>
+    <img src="icon.png" alt="MyJobsLab" />
+    <span>MyJobsLab</span>
+    <span class="user-email" id="user-email"></span>
   </div>
 
-  <div id="loading-view" class="view">
-    <p>Loading...</p>
-  </div>
-
-  <!-- Auth View: Login -->
-  <div id="auth-view" class="view hidden">
-    <div class="auth-card">
-      <p class="auth-title">Log in to sync jobs</p>
-      <form id="login-form">
-        <input type="email" id="email" placeholder="Email" required />
-        <input type="password" id="password" placeholder="Password" required />
-        <button type="submit" id="login-button">Log In</button>
-      </form>
-      <div id="auth-error" class="error-box hidden"></div>
-    </div>
-  </div>
-
-  <!-- App View: Scraper & List -->
-  <div id="app-view" class="view hidden">
-    <div class="user-bar">
-      <span id="user-email"></span>
-      <button id="logout-button">Logout</button>
+  <div class="content">
+    <!-- Not logged in -->
+    <div id="login-prompt">
+      <p>Log in to MyJobsLab to start saving jobs to your dashboard.</p>
+      <a href="https://your-site.com/login" target="_blank">Log In to MyJobsLab</a>
     </div>
 
-    <!-- Scraped job info from current tab -->
+    <!-- Not a job page -->
+    <div id="not-job-page">
+      <p>Navigate to a job listing on LinkedIn, Indeed, Glassdoor, or Handshake to save it.</p>
+    </div>
+
+    <!-- Job info -->
     <div id="job-info">
-      <div class="job-detail">
-        <span class="label">Job Title</span>
-        <p id="job-title">—</p>
-      </div>
-      <div class="job-detail">
-        <span class="label">Company</span>
-        <p id="company">—</p>
-      </div>
-      <div class="job-detail">
-        <span class="label">Location</span>
-        <p id="location">—</p>
-      </div>
-    </div>
+      <div class="field-label">Job Title</div>
+      <div class="field-value" id="job-title">—</div>
 
-    <div id="action-row">
-      <button id="action-button">Add to Applied</button>
-    </div>
+      <div class="field-label">Company</div>
+      <div class="field-value" id="job-company">—</div>
 
-    <div class="section-divider">
-      <span>Recently Saved</span>
-    </div>
+      <div class="field-label">URL</div>
+      <div class="field-value muted" id="job-url">—</div>
 
-    <!-- Saved applications list -->
-    <ul id="jobs-list"></ul>
+      <div class="field-label">Status</div>
+      <select class="status-select" id="status-select">
+        <option value="Applied">Applied</option>
+        <option value="Interviewing">Interviewing</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Ghosted">Ghosted</option>
+        <option value="Accepted">Accepted</option>
+      </select>
+
+      <button id="save-btn">Save to Dashboard</button>
+      <div id="success-msg">✓ Saved to your dashboard!</div>
+      <div id="error-msg"></div>
+
+      <button class="logout-btn" id="logout-btn">Log out</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
 </body>
+
 </html>
